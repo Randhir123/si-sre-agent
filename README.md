@@ -35,6 +35,7 @@ subprocess ever starts — the LLM cannot talk the executor into running
     kubectl_get / kubectl_describe / kubectl_logs / kubectl_events
     prometheus_query
     ibmcloud_es (consumer group states)
+    ibm cloud logs
 ```
 
 ## Setup

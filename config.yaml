@@ -1,0 +1,55 @@
+# SRE Agent configuration
+# Per-environment, NON-SECRET settings only.
+# Secrets (IBM_CLOUD_API_KEY, GRAFANA_TOKEN) come from environment variables,
+# NEVER from this file — config.yaml is committed to git.
+
+default_namespace: si
+
+# --- Metrics ---------------------------------------------------------------
+# Prometheus service discovered in the cluster (Path B — port-forward):
+#   Service: kube-prometheus-stack-prometheus  Namespace: monitoring  Port: 9090
+#   NodePort: 30090
+#
+# Before running the agent, start a port-forward in a separate terminal:
+#   kubectl port-forward svc/kube-prometheus-stack-prometheus 9090:9090 -n monitoring
+#
+# Then leave this URL as-is. The preflight check will verify reachability.
+#
+# Alternative (Path C, needs VPN): Grafana datasource proxy
+#   prometheus_url: https://monitoring-dev.w3.insights.ibm.com/api/datasources/proxy/uid/<UID>
+#   (requires GRAFANA_TOKEN env var)
+prometheus_url: http://localhost:9090
+
+# Port-forward target (used when prometheus_url is unreachable at startup).
+# The agent will auto-start `kubectl port-forward` and kill it on exit.
+prometheus_pf_svc: kube-prometheus-stack-prometheus
+prometheus_pf_ns: monitoring
+prometheus_pf_port: 9090
+
+# --- Useful metric names (hints; agent composes its own PromQL too) --------
+metrics:
+  rebalance_count: com_ibm_srm_kafka_consumer_rebalance_count_Count
+  pod_restarts: kube_pod_container_status_restarts_total
+
+# --- Logs ------------------------------------------------------------------
+# IBM Cloud Logs query API endpoint (NOT the ingress endpoint).
+# Format: https://<instance-guid>.api.<region>.logs.cloud.ibm.com
+#
+# From your connection properties:
+#   ICLogs.host = 0a5ca5b4-8187-4616-9dc1-9aa0af6b32d9.ingress.us-south.logs.cloud.ibm.com
+#   => IBM_LOGS_ENDPOINT = https://0a5ca5b4-8187-4616-9dc1-9aa0af6b32d9.api.us-south.logs.cloud.ibm.com
+#
+# The IBM_CLOUD_API_KEY env var authenticates the query (IAM token exchange).
+# Set both before running the agent:
+#   export IBM_CLOUD_API_KEY=...
+#   export IBM_LOGS_ENDPOINT=https://0a5ca5b4-8187-4616-9dc1-9aa0af6b32d9.api.us-south.logs.cloud.ibm.com
+
+# --- IBM Cloud Logs field reference ----------------------------------------
+# applicationName  = Kubernetes namespace (e.g. "si")
+# subsystemName    = component / container name (e.g. "DataCollector")
+# text.message     = the log message text
+# timestamp        = epoch milliseconds
+
+# kubectl uses your current kubeconfig context. ALWAYS confirm with:
+#   kubectl config current-context
+# before running against production.

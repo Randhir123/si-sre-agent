@@ -83,13 +83,43 @@ def preflight(cfg: dict) -> bool:
         ok = False
     all_ok &= _check("kubectl context", ok, ctx)
 
-    # 2. LLM API key
+    # 2. LLM API key / connectivity
     if prov == "anthropic":
         llm_key_ok = bool(os.environ.get("ANTHROPIC_API_KEY"))
         all_ok &= _check("ANTHROPIC_API_KEY set", llm_key_ok)
-    else:
+    elif prov == "openai":
         llm_key_ok = bool(os.environ.get("OPENAI_API_KEY"))
         all_ok &= _check("OPENAI_API_KEY set", llm_key_ok)
+    elif prov == "gemini":
+        gem_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY", "")
+        llm_key_ok = bool(gem_key)
+        all_ok &= _check("GOOGLE_API_KEY or GEMINI_API_KEY set", llm_key_ok)
+    elif prov == "ollama":
+        ollama_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+        _check("Ollama (no API key required)", True, f"base URL: {ollama_url}")
+        try:
+            ollama_resp = requests.get(f"{ollama_url.rstrip('/')}/api/tags", timeout=5)
+            ollama_ok = ollama_resp.status_code == 200
+            ollama_detail = "reachable" if ollama_ok else f"HTTP {ollama_resp.status_code}"
+        except Exception as e:
+            ollama_ok = False
+            ollama_detail = f"unreachable: {e}"
+        if not ollama_ok:
+            print(f"  [warn] Ollama not reachable at {ollama_url} ({ollama_detail})")
+            print("    Use --skip-preflight to bypass, or start Ollama first.")
+    elif prov == "openai-compatible":
+        compat_url = os.environ.get("OPENAI_COMPATIBLE_BASE_URL", "")
+        url_ok = bool(compat_url)
+        all_ok &= _check("OPENAI_COMPATIBLE_BASE_URL set", url_ok,
+                         compat_url if url_ok else "not set")
+        compat_key = os.environ.get("OPENAI_COMPATIBLE_API_KEY", "")
+        if not compat_key:
+            _check("OPENAI_COMPATIBLE_API_KEY", False,
+                   "not set — will use 'dummy'; may fail if endpoint requires auth")
+        else:
+            _check("OPENAI_COMPATIBLE_API_KEY set", True)
+    else:
+        _check(f"LLM key for {prov}", False, "unknown provider")
 
     # 3. IBM Cloud API key
     api_key_set = bool(os.environ.get("IBM_CLOUD_API_KEY"))
@@ -207,10 +237,24 @@ def main():
     args = parser.parse_args()
 
     prov = _provider(MODEL)
-    key_var = "ANTHROPIC_API_KEY" if prov == "anthropic" else "OPENAI_API_KEY"
-    if not os.environ.get(key_var):
+    _KEY_VARS = {
+        "anthropic": "ANTHROPIC_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "gemini": None,   # checked separately (two possible vars)
+        "ollama": None,   # no key required
+        "openai-compatible": None,   # key may be "dummy"
+    }
+    key_var = _KEY_VARS.get(prov)
+    if key_var and not os.environ.get(key_var):
         print(f"ERROR: {key_var} not set (model={MODEL}, provider={prov})", file=sys.stderr)
         sys.exit(1)
+    if prov == "gemini":
+        if not (os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")):
+            print(
+                f"ERROR: GOOGLE_API_KEY or GEMINI_API_KEY not set (model={MODEL}, provider={prov})",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     cfg = load_config(args.config)
     if args.namespace:

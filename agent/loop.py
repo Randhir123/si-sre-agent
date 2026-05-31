@@ -5,22 +5,24 @@ Sends the alert to the configured model with the read-only tool set, executes
 tool calls, feeds results back, and repeats until the model produces a final
 report or we hit a step limit.
 
-Provider detection is by model name prefix:
-  claude-*           -> Anthropic API  (ANTHROPIC_API_KEY)
-  gpt-* / o1* / o3*  -> OpenAI API    (OPENAI_API_KEY)
+Provider is selected by MODEL_PROVIDER env var, or inferred from MODEL prefix:
+  claude-*           -> anthropic
+  gpt-* / o1* / o3*  -> openai
+  gemini-*           -> gemini
+  anything else      -> ollama
 
-Set MODEL in .env (or the environment) to switch providers.
+Set MODEL (and optionally MODEL_PROVIDER) in .env to switch providers.
 """
 from __future__ import annotations
 
-import json
 import os
 
 from agent.prompts import SYSTEM_PROMPT
+from agent.providers import ModelTurn, provider_for_model, get_provider
 from tools.registry import TOOL_SCHEMAS, dispatch
 from tools.scrubber import safe_output
 
-# Resolved at import time so preflight can surface it.
+# Resolved at import time so preflight can read it.
 MODEL = os.environ.get("MODEL", "claude-opus-4-8")
 
 MAX_STEPS = 25
@@ -28,24 +30,8 @@ MAX_TOKENS = 4096
 
 
 def _provider(model: str) -> str:
-    if model.startswith(("gpt-", "o1", "o3", "o4")):
-        return "openai"
-    return "anthropic"
-
-
-def _openai_tools(schemas: list[dict]) -> list[dict]:
-    """Convert Anthropic-format tool schemas to OpenAI function-calling format."""
-    return [
-        {
-            "type": "function",
-            "function": {
-                "name": s["name"],
-                "description": s["description"],
-                "parameters": s["input_schema"],
-            },
-        }
-        for s in schemas
-    ]
+    """Return the provider name for *model*. Kept for main.py compatibility."""
+    return provider_for_model(model)
 
 
 def _print_step(label: str, body: str = "") -> None:
@@ -64,97 +50,51 @@ def _indent(text: str, n: int = 4) -> str:
 
 
 def investigate(alert: str, cfg: dict, verbose: bool = True) -> str:
-    """Run the investigation. Returns the model's final report text."""
+    """Run the investigation loop. Returns the model's final report text."""
     model = MODEL
-    prov = _provider(model)
-
-    if prov == "anthropic":
-        import anthropic
-        client = anthropic.Anthropic()
-    else:
-        import openai
-        client = openai.OpenAI()
+    prov_name = _provider(model)
+    provider = get_provider(prov_name)
 
     messages: list[dict] = [{"role": "user", "content": f"ALERT: {alert}"}]
 
     for step in range(1, MAX_STEPS + 1):
 
         # ── call the model ──────────────────────────────────────────────────
-        if prov == "anthropic":
-            resp = client.messages.create(
-                model=model,
-                max_tokens=MAX_TOKENS,
-                system=SYSTEM_PROMPT,
-                tools=TOOL_SCHEMAS,
-                messages=messages,
-            )
-            reasoning = "".join(b.text for b in resp.content if b.type == "text")
-            done = resp.stop_reason != "tool_use"
-            tool_calls = [
-                (b.id, b.name, b.input)
-                for b in resp.content
-                if b.type == "tool_use"
-            ]
-            messages.append({"role": "assistant", "content": resp.content})
-
-        else:  # openai
-            oai_msgs = [{"role": "system", "content": SYSTEM_PROMPT}] + messages
-            resp = client.chat.completions.create(
-                model=model,
-                max_completion_tokens=MAX_TOKENS,
-                tools=_openai_tools(TOOL_SCHEMAS),
-                messages=oai_msgs,
-            )
-            msg = resp.choices[0].message
-            reasoning = msg.content or ""
-            done = resp.choices[0].finish_reason != "tool_calls"
-            tool_calls = [
-                (tc.id, tc.function.name, json.loads(tc.function.arguments))
-                for tc in (msg.tool_calls or [])
-            ]
-            # OpenAI requires tool_calls preserved in the assistant message
-            messages.append({
-                "role": "assistant",
-                "content": msg.content,
-                "tool_calls": [tc.model_dump() for tc in (msg.tool_calls or [])],
-            })
+        turn: ModelTurn = provider.call(
+            model=model,
+            system_prompt=SYSTEM_PROMPT,
+            messages=messages,
+            tool_schemas=TOOL_SCHEMAS,
+            max_tokens=MAX_TOKENS,
+        )
 
         # ── surface reasoning ───────────────────────────────────────────────
-        if verbose and reasoning.strip():
+        if verbose and turn.reasoning.strip():
             _print_step(
-                f"[step {step}] reasoning ({model})",
-                safe_output(reasoning.strip()),
+                f"[step {step}] reasoning ({prov_name}/{model})",
+                safe_output(turn.reasoning.strip()),
             )
 
-        if done:
-            return safe_output(reasoning)
+        provider.append_assistant_turn(messages, turn)
+
+        if turn.done:
+            return safe_output(turn.reasoning)
 
         # ── execute tool calls ──────────────────────────────────────────────
-        # Anthropic batches all results into one user message.
-        # OpenAI uses one separate "tool" role message per result.
-        anthropic_results: list[dict] = []
-
-        for tc_id, tc_name, tc_input in tool_calls:
+        results: list[tuple] = []
+        for tc in turn.tool_calls:
             if verbose:
-                _print_step(f"[step {step}] tool: {tc_name}", _fmt_input(tc_input))
+                _print_step(f"[step {step}] tool: {tc.name}", _fmt_input(tc.input))
 
-            observation = dispatch(tc_name, tc_input, cfg)
+            observation = dispatch(tc.name, tc.input, cfg)
             observation = safe_output(observation)
 
             if verbose:
                 print(f"\n  observation:\n{_indent(observation)}")
 
-            if prov == "anthropic":
-                anthropic_results.append(
-                    {"type": "tool_result", "tool_use_id": tc_id, "content": observation}
-                )
-            else:
-                messages.append(
-                    {"role": "tool", "tool_call_id": tc_id, "content": observation}
-                )
+            results.append((tc, observation))
 
-        if prov == "anthropic" and anthropic_results:
-            messages.append({"role": "user", "content": anthropic_results})
+        provider.append_tool_results(messages, results)
 
     return (
         "[investigation hit MAX_STEPS without a conclusion — "

@@ -42,8 +42,47 @@ subprocess ever starts — the LLM cannot talk the executor into running
 
 ```bash
 pip install -r requirements.txt
-export ANTHROPIC_API_KEY=sk-...
+cp .env.example .env   # fill in your keys
 # Make sure kubectl context + prometheus URL in config.yaml are correct
+python main.py --alert "Kafka consumer rebalances spiking in namespace si"
+```
+
+## Model providers
+
+The agent supports five provider backends. Set `MODEL_PROVIDER` explicitly, or
+let it be inferred from the `MODEL` name prefix (see `.env.example`).
+
+**OpenAI**
+```bash
+MODEL_PROVIDER=openai MODEL=gpt-5.5 python main.py \
+  --alert "Kafka consumer rebalances spiking in namespace si"
+```
+
+**Anthropic**
+```bash
+MODEL_PROVIDER=anthropic MODEL=claude-opus-4-8 python main.py \
+  --alert "Kafka consumer rebalances spiking in namespace si"
+```
+
+**Gemini** (needs `GOOGLE_API_KEY` or `GEMINI_API_KEY`)
+```bash
+MODEL_PROVIDER=gemini MODEL=gemini-2.5-pro python main.py \
+  --alert "Kafka consumer rebalances spiking in namespace si"
+```
+
+**Ollama local** (uses JSON tool-call protocol; works with Gemma, Llama, Qwen, etc.)
+```bash
+ollama pull gemma3:12b
+MODEL_PROVIDER=ollama MODEL=gemma3:12b python main.py \
+  --alert "Kafka consumer rebalances spiking in namespace si" --skip-preflight
+```
+
+**OpenAI-compatible** (NVIDIA NIM / Nemotron, vLLM, LM Studio, Together, Groq, Fireworks, OpenRouter …)
+```bash
+MODEL_PROVIDER=openai-compatible \
+MODEL=<model-id> \
+OPENAI_COMPATIBLE_BASE_URL=https://your-endpoint.example.com \
+OPENAI_COMPATIBLE_API_KEY=<key> \
 python main.py --alert "Kafka consumer rebalances spiking in namespace si"
 ```
 

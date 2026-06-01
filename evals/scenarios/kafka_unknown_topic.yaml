@@ -8,10 +8,9 @@ max_steps: 12
 alert: >
   Kafka consumer rebalances are spiking in namespace si for multi-system-processor.
   Investigate the last 2 hours using read-only tools. Use IBM Cloud Logs,
-  Kubernetes, Prometheus, and Event Streams if relevant. Determine whether
-  UNKNOWN_TOPIC_OR_PARTITION is involved. Produce a concise SRE incident report
-  with evidence, likely root cause, confidence, remediation commands for human
-  review only, and verification steps.
+  Kubernetes, Prometheus, and Event Streams if relevant. Produce a concise SRE
+  incident report with evidence, likely root cause, confidence, remediation
+  commands for human review only, and verification steps.
 expected_evidence:
   - UNKNOWN_TOPIC_OR_PARTITION
   - dev001.task.status.probe.completed

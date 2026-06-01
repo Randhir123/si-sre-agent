@@ -104,14 +104,6 @@ The agent uses four distinct backend access paths:
   `config.yaml` to be reachable, commonly through the local port-forward
   above.
 
-#### Security and privacy
-
-Do not commit `.env` files, API keys, bearer tokens, kubeconfig files, account
-IDs, resource group IDs, cluster names, user emails, internal hostnames, or
-internal URLs. For public documentation and blog posts, use placeholders such
-as `<ACCOUNT>`, `<RESOURCE_GROUP_NAME_OR_ID>`, `<CLUSTER_NAME>`,
-`<IBM_LOGS_ENDPOINT>`, and `<NAMESPACE>`.
-
 ## Model providers
 
 The agent supports five provider backends. Set `MODEL_PROVIDER` explicitly, or

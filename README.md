@@ -121,11 +121,25 @@ python evals/render_trajectory.py evals/runs/.../trajectory.json
 
 ## Files
 
+### Runtime
+
 - `main.py` — entrypoint / CLI
-- `agent/loop.py` — the ReAct loop
-- `agent/prompts.py` — system prompt (the SRE brain)
+- `agent/loop.py` — ReAct loop and optional trajectory hooks
+- `agent/providers.py` — model provider abstraction for OpenAI, Anthropic, Gemini, Ollama, and OpenAI-compatible endpoints
+- `agent/prompts.py` — system prompt / SRE instructions
 - `tools/registry.py` — tool definitions + safety classification + dispatch
-- `tools/kubectl.py` — kubectl wrappers (read-only)
+- `tools/kubectl.py` — Kubernetes read-only wrappers
 - `tools/prometheus.py` — Prometheus HTTP client
 - `tools/ibmcloud.py` — IBM Event Streams CLI wrapper
+- `tools/ibm_logs.py` — IBM Cloud Logs query client
+- `tools/scrubber.py` — output sanitization
 - `config.yaml` — per-environment config
+
+### Evaluation
+
+- `evals/trajectory.py` — trajectory recorder for model evaluation
+- `evals/scenarios/kafka_unknown_topic.yaml` — Kafka rebalance evaluation scenario
+- `evals/rubrics/kafka_unknown_topic.yaml` — deterministic scoring rubric
+- `evals/verify_kafka_unknown_topic.py` — verifier for Kafka trajectory runs
+- `evals/render_trajectory.py` — renders trajectory JSON to Markdown + Mermaid diagram
+- `evals/runs/` — generated trajectory outputs, git-ignored

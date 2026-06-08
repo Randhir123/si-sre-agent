@@ -1,8 +1,9 @@
 """
 The system prompt is where the SRE expertise lives. We deliberately do NOT
-hardcode a Kafka decision tree in Python — Claude already understands Kafka,
-Kubernetes, and SRE methodology. We give it a general investigation framework
-and let it reason. This is what keeps the agent generic.
+hardcode a domain decision tree in Python. We give the model a general
+investigation framework, then append a small symptom-specific skill prompt at
+runtime. This keeps the base agent generic while still steering common
+incident types.
 """
 
 SYSTEM_PROMPT = """\
@@ -44,12 +45,6 @@ You have TWO log tools. Use the right one:
   and what result would confirm or rule it out.
 - Prefer narrowing queries: break metrics down by pod/topic/instance to find
   whether ALL instances are affected (external trigger) or ONE is (local fault).
-- A consumer logging "group is already rebalancing" is a BYSTANDER, not the
-  cause. Keep looking for what triggered the rebalance.
-- Broker metadata errors (e.g. UNKNOWN_TOPIC_OR_PARTITION) affecting multiple
-  unrelated consumer groups simultaneously point to a shared root cause, not a
-  per-pod fault.
-- For Kafka rebalances, search for logs mentioning any of these "poll timeout|max.poll|leaving group|rebalance|revoke|LeaveGroup"  
 - Apply RED (Rate, Errors, Duration) for services and USE (Utilization,
   Saturation, Errors) for resources when deciding what to measure.
 

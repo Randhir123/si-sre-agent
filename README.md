@@ -240,6 +240,23 @@ Run Bob separately from the target work-code repository. The generated
 `bob-task.md` requires Phase 1 repository grounding and human approval before
 implementation.
 
+## Investigation skills
+
+The agent uses deterministic keyword routing to select a lightweight
+investigation skill for each alert. The selected skill appends symptom-specific
+guidance to the generic SRE prompt while keeping the same read-only tools,
+ReAct loop, trajectory capture, and Bob handoff behavior.
+
+Examples:
+
+- `event-data restarts` → `pod_restart`
+- `Kafka consumer rebalances` → `kafka_rebalance`
+- `UnknownHostException resolving service` → `dns_failure`
+- `Cassandra LOCAL_QUORUM read timeout` → `cassandra_timeout`
+
+The base prompt remains generic. Domain-specific guidance, such as Kafka
+rebalance checks or pod restart checks, lives in the selected skill prompt.
+
 ## Trajectory capture
 
 `--record-trajectory` records every step of an investigation:

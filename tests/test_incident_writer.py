@@ -15,6 +15,7 @@ def test_write_incident_artifacts_creates_bob_handoff(tmp_path):
         incident_dir=str(tmp_path),
         service="time-series-query",
         target_repo="/path/to/work/repo",
+        selected_skill="latency",
     )
 
     assert re.match(
@@ -38,6 +39,7 @@ def test_write_incident_artifacts_creates_bob_handoff(tmp_path):
     report = json.loads((incident_path / "report.json").read_text(encoding="utf-8"))
     assert report["alert"] == "time-series-query has read timeouts and socket growth"
     assert report["service"] == "time-series-query"
+    assert report["selected_skill"] == "latency"
     assert report["artifact_files"] == {
         "report_md": "report.md",
         "report_json": "report.json",

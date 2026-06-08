@@ -19,6 +19,7 @@ import os
 
 from agent.prompts import SYSTEM_PROMPT
 from agent.providers import ModelTurn, provider_for_model, get_provider
+from agent.skills import classify_skill, skill_prompt
 from tools.registry import TOOL_SCHEMAS, dispatch
 from tools.scrubber import safe_output
 
@@ -51,11 +52,19 @@ def _indent(text: str, n: int = 4) -> str:
     return "\n".join(pad + line for line in text.splitlines()[:60])
 
 
-def investigate(alert: str, cfg: dict, verbose: bool = True, recorder=None) -> str:
+def investigate(
+    alert: str,
+    cfg: dict,
+    verbose: bool = True,
+    recorder=None,
+    selected_skill: str | None = None,
+) -> str:
     """Run the investigation loop. Returns the model's final report text."""
     model = MODEL
     prov_name = _provider(model)
     provider = get_provider(prov_name)
+    skill = selected_skill or classify_skill(alert)
+    effective_system_prompt = SYSTEM_PROMPT + "\n\n" + skill_prompt(skill)
 
     messages: list[dict] = [{"role": "user", "content": f"ALERT: {alert}"}]
 
@@ -64,7 +73,7 @@ def investigate(alert: str, cfg: dict, verbose: bool = True, recorder=None) -> s
         # ── call the model ──────────────────────────────────────────────────
         turn: ModelTurn = provider.call(
             model=model,
-            system_prompt=SYSTEM_PROMPT,
+            system_prompt=effective_system_prompt,
             messages=messages,
             tool_schemas=TOOL_SCHEMAS,
             max_tokens=MAX_TOKENS,

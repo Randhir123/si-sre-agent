@@ -31,6 +31,7 @@ except ImportError:
 import yaml
 
 from agent.loop import investigate, MODEL, _provider
+from agent.skills import classify_skill
 from sre_bridge.incident_writer import write_incident_artifacts
 
 
@@ -282,6 +283,7 @@ def main():
             sys.exit(1)
 
     _ensure_prometheus(cfg)
+    selected_skill = classify_skill(args.alert)
 
     # Optional trajectory recorder — only created when --record-trajectory is set
     recorder = None
@@ -298,6 +300,7 @@ def main():
                 "config_path": args.config,
                 "quiet": args.quiet,
                 "skip_preflight": args.skip_preflight,
+                "selected_skill": selected_skill,
             },
             out_dir=args.runs_dir,
         )
@@ -305,8 +308,15 @@ def main():
     print(f"\nInvestigating: {args.alert}")
     print(f"   namespace : {cfg.get('default_namespace')}")
     print(f"   model     : {MODEL}  ({prov})")
+    print(f"   selected skill : {selected_skill}")
 
-    report = investigate(args.alert, cfg, verbose=not args.quiet, recorder=recorder)
+    report = investigate(
+        args.alert,
+        cfg,
+        verbose=not args.quiet,
+        recorder=recorder,
+        selected_skill=selected_skill,
+    )
 
     print("\n" + "=" * 70)
     print("FINAL REPORT")
@@ -327,6 +337,7 @@ def main():
             incident_dir=args.incident_dir,
             service=args.service,
             target_repo=args.target_repo,
+            selected_skill=selected_skill,
         )
         print(f"\nIncident artifacts written: {incident_path}")
         print(f"Bob task: {incident_path / 'bob-task.md'}")

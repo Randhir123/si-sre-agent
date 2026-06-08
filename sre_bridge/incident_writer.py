@@ -176,6 +176,7 @@ def write_incident_artifacts(
     incident_dir: str,
     service: str | None = None,
     target_repo: str | None = None,
+    selected_skill: str | None = None,
 ) -> Path:
     created_at = datetime.now(timezone.utc)
     incident_id = _incident_id(created_at=created_at, service=service, alert=alert)
@@ -219,6 +220,7 @@ def write_incident_artifacts(
         "service": service,
         "model": model,
         "provider": provider,
+        "selected_skill": selected_skill,
         "config_path": config_path,
         "final_report": final_report,
         "artifact_files": ARTIFACT_FILES,

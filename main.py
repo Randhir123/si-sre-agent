@@ -31,6 +31,7 @@ except ImportError:
 import yaml
 
 from agent.loop import investigate, MODEL, _provider
+from sre_bridge.incident_writer import write_incident_artifacts
 
 
 def load_config(path: str) -> dict:
@@ -240,6 +241,16 @@ def main():
                         help="scenario label used in trajectory path (default: manual)")
     parser.add_argument("--runs-dir", default="evals/runs",
                         help="root directory for trajectory runs (default: evals/runs)")
+    parser.add_argument("--write-incident", action="store_true",
+                        help="write Bob-ready incident handoff artifacts")
+    parser.add_argument("--incident-dir", default="sre-agent-runs/incidents",
+                        help="root directory for incident artifacts (default: sre-agent-runs/incidents)")
+    parser.add_argument("--service",
+                        help="service name to include in incident metadata")
+    parser.add_argument("--target-repo",
+                        help="target work-code repository path to store as metadata only")
+    parser.add_argument("--open-vscode", action="store_true",
+                        help="open the generated incident directory in VS Code when --write-incident is used")
     args = parser.parse_args()
 
     prov = _provider(MODEL)
@@ -304,6 +315,34 @@ def main():
 
     if recorder and recorder.saved_path:
         print(f"\nTrajectory saved: {recorder.saved_path}")
+
+    if args.write_incident:
+        incident_path = write_incident_artifacts(
+            alert=args.alert,
+            namespace=cfg.get("default_namespace"),
+            final_report=report,
+            model=MODEL,
+            provider=prov,
+            config_path=args.config,
+            incident_dir=args.incident_dir,
+            service=args.service,
+            target_repo=args.target_repo,
+        )
+        print(f"\nIncident artifacts written: {incident_path}")
+        print(f"Bob task: {incident_path / 'bob-task.md'}")
+
+        if args.open_vscode:
+            try:
+                subprocess.run(
+                    ["code", str(incident_path)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                )
+            except FileNotFoundError:
+                print("VS Code CLI not found; incident artifacts were still written.")
+    elif args.open_vscode:
+        print("--open-vscode ignored because --write-incident was not set.")
 
 
 if __name__ == "__main__":

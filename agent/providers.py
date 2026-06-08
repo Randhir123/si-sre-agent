@@ -546,12 +546,10 @@ class OllamaProvider:
             return ModelTurn(reasoning=content, done=True, tool_calls=[])
 
         return ModelTurn(
-            reasoning=(
-                "[ollama: malformed JSON after repair attempt]\n"
-                + content[:500]
-            ),
-            done=True,
+            reasoning="",
+            done=False,
             tool_calls=[],
+            assistant_message={"role": "assistant", "content": content},
         )
 
     def append_assistant_turn(self, messages: list, turn: ModelTurn) -> None:
@@ -563,6 +561,16 @@ class OllamaProvider:
     def append_tool_results(
         self, messages: list, results: list[tuple[ToolCall, str]]
     ) -> None:
+        if not results:
+            messages.append({
+                "role": "user",
+                "content": (
+                    "Continue your investigation of the alert. "
+                    "Either call a tool using a JSON object or write your final "
+                    "incident report as plain text."
+                ),
+            })
+            return
         for tc, obs in results:
             messages.append({
                 "role": "user",

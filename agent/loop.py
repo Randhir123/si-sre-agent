@@ -25,7 +25,7 @@ from tools.scrubber import safe_output
 # Resolved at import time so preflight can read it.
 MODEL = os.environ.get("MODEL", "claude-opus-4-8")
 
-MAX_STEPS = 25
+MAX_STEPS = 30
 MAX_TOKENS = 4096
 
 
